@@ -313,10 +313,12 @@ lifts format example: [{"exercise":"Squat","weight":122.5,"reps":6},{"exercise":
 
   function getWeekEntries() {
     const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
+    const daysSinceMonday = (dayOfWeek + 6) % 7; // Mon=0, Tue=1...
     const result = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = 0; i < 7; i++) {
       const d = new Date(today);
-      d.setDate(today.getDate() - i);
+      d.setDate(today.getDate() - daysSinceMonday + i);
       const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       result.push({ key, label: DAYS[d.getDay()], entry: entries[key] || null });
     }
