@@ -1,16 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 
 const STORAGE_KEY = "fitness-log-entries";
-const TARGETS = {
-  calories: 2300,
-  protein: 160,
-  carbs: 245,
-  fat: 75,
-  steps: 10000,
-  sleep: 7.5,
-};
-
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const TARGETS = { calories: 2300, protein: 160, carbs: 245, fat: 75, steps: 10000, sleep: 7.5 };
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function todayKey() {
@@ -35,7 +27,7 @@ function parseEntry(text) {
     const bare = t.match(/\b(1[5-9]\d\d|2[0-9]\d\d|3[0-4]\d\d)\b/);
     if (bare) result.calories = parseInt(bare[1]);
   }
-  const pro = t.match(/(\d+\.?\d*)\s*g?\s*(?:protein|pro\b|p\b)/);
+  const pro = t.match(/(\d+\.?\d*)\s*g?\s*(?:protein|pro\b)/);
   if (pro) result.protein = parseFloat(pro[1]);
   if (!result.protein) {
     const short = t.match(/(\d+)p(?:\s|,|$)/);
@@ -47,8 +39,7 @@ function parseEntry(text) {
   if (fat) result.fat = parseFloat(fat[1]);
   const steps = t.match(/(\d+\.?\d*)\s*k?\s*steps?/);
   if (steps) {
-    result.steps = t.includes("k steps") || t.match(/\d+\.?\d*k\s*steps/)
-      ? parseFloat(steps[1]) * 1000 : parseFloat(steps[1]);
+    result.steps = t.match(/\d+\.?\d*k\s*steps/) ? parseFloat(steps[1]) * 1000 : parseFloat(steps[1]);
   }
   if (!result.steps) {
     const ksteps = t.match(/(\d+\.?\d*)k(?:\s|,|$)/);
@@ -58,13 +49,27 @@ function parseEntry(text) {
   if (sleep) result.sleep = parseFloat(sleep[1]);
   const sleep2 = t.match(/sleep[:\s]+(\d+\.?\d*)/);
   if (!result.sleep && sleep2) result.sleep = parseFloat(sleep2[1]);
-  const trainingKeywords = ["crossfit","rest","golf","run","swim","cycle","murph","bench","deadlift","snatch","squat","hiit","walk","comp"];
-  for (const kw of trainingKeywords) {
-    if (t.includes(kw)) { result.training = text.match(new RegExp(kw, "i"))?.[0] || kw; break; }
-  }
-  const trainingFull = text.match(/crossfit[^\d,]*/i);
-  if (trainingFull) result.training = trainingFull[0].trim().replace(/,$/, "");
   return result;
+}
+
+async function compressImage(base64, mediaType) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const MAX = 1024;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+        else { width = Math.round(width * MAX / height); height = MAX; }
+      }
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      resolve({ base64: canvas.toDataURL("image/jpeg", 0.82).split(",")[1], mediaType: "image/jpeg" });
+    };
+    img.onerror = () => resolve({ base64, mediaType });
+    img.src = `data:${mediaType};base64,${base64}`;
+  });
 }
 
 function Ring({ value, max, color, label, unit, size = 56 }) {
@@ -110,13 +115,10 @@ function Bar({ value, target, color, label }) {
 }
 
 function WeightSparkline({ entries }) {
-  const recent = Object.entries(entries)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-14).filter(([, e]) => e.weight);
+  const recent = Object.entries(entries).sort(([a],[b]) => a.localeCompare(b)).slice(-14).filter(([,e]) => e.weight);
   if (recent.length < 2) return null;
-  const weights = recent.map(([, e]) => e.weight);
-  const min = Math.min(...weights) - 0.5;
-  const max = Math.max(...weights) + 0.5;
+  const weights = recent.map(([,e]) => e.weight);
+  const min = Math.min(...weights) - 0.5, max = Math.max(...weights) + 0.5;
   const w = 280, h = 60;
   const pts = weights.map((wt, i) => {
     const x = (i / (weights.length - 1)) * (w - 20) + 10;
@@ -155,7 +157,7 @@ function CameraIcon() {
 function SendIcon() {
   return (
     <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-      <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
     </svg>
   );
 }
@@ -173,7 +175,7 @@ export default function App() {
   const [input, setInput] = useState("");
   const [pendingImage, setPendingImage] = useState(null);
   const [messages, setMessages] = useState([
-    { role: "assistant", text: "Hey Fintan 👋 Log by typing or tap the camera to send a screenshot from MFP or your workout app.\n\nE.g. \"79.2kg, CrossFit, 2310 cals, 168p, 11k steps, 7.5hrs\"\n\nOr ask anything: \"where am I going wrong with my diet?\"" }
+    { role: "assistant", text: "Hey Fintan 👋 Log by typing or tap the camera to send a screenshot from MFP or your workout app.\n\nE.g. \"79.2kg, 2310 cals, 168p, 11k steps, 7.5hrs\"\n\nOr ask: \"where am I going wrong with my diet?\"" }
   ]);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("chat");
@@ -181,10 +183,7 @@ export default function App() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setEntries(JSON.parse(saved));
-    } catch {}
+    try { const s = localStorage.getItem(STORAGE_KEY); if (s) setEntries(JSON.parse(s)); } catch {}
   }, []);
 
   useEffect(() => {
@@ -199,9 +198,8 @@ export default function App() {
 
   function buildContext() {
     const recent = Object.entries(entries)
-      .sort(([a], [b]) => b.localeCompare(a))
-      .slice(0, 14)
-      .map(([k, e]) => `${formatDate(k)}: weight=${e.weight||"?"}kg, cals=${e.calories||"?"}, protein=${e.protein||"?"}g, carbs=${e.carbs||"?"}g, fat=${e.fat||"?"}g, steps=${e.steps||"?"}, sleep=${e.sleep||"?"}hrs, training=${e.training||"rest"}`);
+      .sort(([a],[b]) => b.localeCompare(a)).slice(0, 14)
+      .map(([k,e]) => `${formatDate(k)}: weight=${e.weight||"?"}kg, cals=${e.calories||"?"}, protein=${e.protein||"?"}g, carbs=${e.carbs||"?"}g, fat=${e.fat||"?"}g, steps=${e.steps||"?"}, sleep=${e.sleep||"?"}hrs, training=${e.training||"rest"}${e.lifts?.length ? ", lifts="+e.lifts.map(l=>`${l.exercise} ${l.weight}kg x${l.reps}`).join("|") : ""}`);
     return recent.length ? recent.join("\n") : "No previous entries yet.";
   }
 
@@ -211,11 +209,7 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target.result;
-      setPendingImage({
-        base64: dataUrl.split(",")[1],
-        mediaType: file.type || "image/jpeg",
-        previewUrl: dataUrl
-      });
+      setPendingImage({ base64: dataUrl.split(",")[1], mediaType: file.type || "image/jpeg", previewUrl: dataUrl });
     };
     reader.readAsDataURL(file);
     e.target.value = "";
@@ -234,24 +228,34 @@ export default function App() {
     setPendingImage(null);
     setLoading(true);
 
-    const systemPrompt = `You are a direct, knowledgeable fitness and nutrition coach for Fintan — an Irish secondary school teacher doing CrossFit 4-5x/week. His daily targets: ${TARGETS.calories} kcal, ${TARGETS.protein}g protein, ${TARGETS.carbs}g carbs, ${TARGETS.fat}g fat, ${TARGETS.steps} steps, 7.5hrs sleep. Fat loss plan, 300 kcal deficit, goal date August 10th.
+    const systemPrompt = `You are a direct, knowledgeable fitness and nutrition coach for Fintan — Irish secondary school teacher, CrossFit 4-5x/week. Daily targets: ${TARGETS.calories} kcal, ${TARGETS.protein}g protein, ${TARGETS.carbs}g carbs, ${TARGETS.fat}g fat, ${TARGETS.steps} steps, 7.5hrs sleep. Fat loss plan, 300 kcal deficit, goal August 10th.
 
 Recent log:
 ${buildContext()}
 
-SCREENSHOT INSTRUCTIONS: If the user sends an MFP food diary screenshot, read the full day's food log and give specific, actionable feedback — not just totals. Look at meal timing, food quality, protein distribution across meals, where calories are coming from, what to swap or add. Be like a coach who actually read their diary, not just the numbers. If it's a workout screenshot, log the training and note anything relevant.
+SCREENSHOT INSTRUCTIONS:
+- MFP food diary: read every food item listed, give specific actionable feedback on meal timing, food quality, protein spread across meals, what to swap or improve. Be a coach who actually read the diary, not just the totals.
+- Workout/WOD screenshot: read the full workout description and log it exactly as written (movements, weights, reps, notes). Don't summarise to just one word.
+- If you see individual lifts with weights and reps (e.g. squat 122.5kg 6RM), extract each one.
 
-For all messages: be direct and useful. 2-5 sentences normally, more if giving detailed diet feedback. No bullet points unless listing specific swaps/suggestions. Don't be sycophantic.
+TEXT INSTRUCTIONS:
+- If user describes a workout or lift, log the full description as training, not just a keyword.
+- Extract any strength data mentioned (exercise name, weight, reps/sets).
 
-CRITICAL — always end your reply with this exact line (fill in what you found, null for anything not present):
-LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sleep":null,"weight":null,"training":null}`;
+RESPONSE: be direct, 2-5 sentences normally, more for detailed diet feedback. No sycophancy.
+
+CRITICAL — always end your reply with exactly this line, no markdown, fill in what you found (null for anything not present). For lifts use array format:
+LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sleep":null,"weight":null,"training":null,"lifts":null}
+
+lifts format example: [{"exercise":"Squat","weight":122.5,"reps":6},{"exercise":"Bench","weight":90,"reps":5}]`;
 
     try {
       let userContent;
       if (imageToSend) {
+        const compressed = await compressImage(imageToSend.base64, imageToSend.mediaType);
         userContent = [
-          { type: "image", source: { type: "base64", media_type: imageToSend.mediaType, data: imageToSend.base64 } },
-          { type: "text", text: text || "Please read this screenshot, extract any data to log, and give me feedback on what you see." }
+          { type: "image", source: { type: "base64", media_type: compressed.mediaType, data: compressed.base64 } },
+          { type: "text", text: text || "Read this screenshot, extract any data to log, and give me feedback." }
         ];
       } else {
         userContent = text;
@@ -269,13 +273,20 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
       });
 
       const data = await res.json();
-      const fullReply = data.content?.[0]?.text || "Got it!";
+      const fullReply = data.content?.[0]?.text || "";
 
-      const logMatch = fullReply.match(/LOGDATA:(\{[^\n]+\})/);
+      if (!fullReply) {
+        setMessages(prev => [...prev, { role: "assistant", text: "Something went wrong — try again." }]);
+        setLoading(false);
+        return;
+      }
+
+      // Parse LOGDATA
+      const logMatch = fullReply.match(/LOGDATA:(\{.+\})/);
       if (logMatch) {
         try {
           const parsed = JSON.parse(logMatch[1]);
-          const cleaned = Object.fromEntries(Object.entries(parsed).filter(([, v]) => v !== null));
+          const cleaned = Object.fromEntries(Object.entries(parsed).filter(([,v]) => v !== null));
           if (Object.keys(cleaned).length > 0) {
             const key = todayKey();
             setEntries(prev => ({ ...prev, [key]: { ...(prev[key] || {}), ...cleaned } }));
@@ -283,6 +294,7 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
         } catch {}
       }
 
+      // Belt-and-braces local parse for text
       if (!imageToSend && text) {
         const localParsed = parseEntry(text);
         if (Object.keys(localParsed).length > 0) {
@@ -291,10 +303,10 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
         }
       }
 
-      const displayReply = fullReply.replace(/\nLOGDATA:\{[^\n]+\}/, "").trim();
+      const displayReply = fullReply.replace(/\nLOGDATA:\{.+\}/, "").replace(/LOGDATA:\{.+\}/, "").trim();
       setMessages(prev => [...prev, { role: "assistant", text: displayReply }]);
-    } catch {
-      setMessages(prev => [...prev, { role: "assistant", text: "Something went wrong, try again." }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "assistant", text: `Error: ${err.message}. Try again.` }]);
     }
     setLoading(false);
   }
@@ -312,29 +324,30 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
   }
 
   function exportCSV() {
-    const rows = [["Date","Weight (kg)","Calories","Protein (g)","Carbs (g)","Fat (g)","Steps","Sleep (hrs)","Training"]];
-    Object.entries(entries).sort(([a],[b]) => a.localeCompare(b)).forEach(([key, e]) => {
-      rows.push([key, e.weight??"", e.calories??"", e.protein??"", e.carbs??"", e.fat??"", e.steps??"", e.sleep??"", e.training??""]);
+    const rows = [["Date","Weight","Calories","Protein","Carbs","Fat","Steps","Sleep","Training","Lifts"]];
+    Object.entries(entries).sort(([a],[b]) => a.localeCompare(b)).forEach(([key,e]) => {
+      rows.push([key, e.weight??"", e.calories??"", e.protein??"", e.carbs??"", e.fat??"", e.steps??"", e.sleep??"", e.training??"", e.lifts ? e.lifts.map(l=>`${l.exercise} ${l.weight}kg x${l.reps}`).join("; ") : ""]);
     });
-    const csv = rows.map(r => r.join(",")).join("\n");
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url;
-    a.download = `fintrack-export-${todayKey()}.csv`; a.click();
+    a.download = `fintrack-${todayKey()}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
   const week = getWeekEntries();
   const weekWithData = week.filter(w => w.entry);
   const avgWeight = weekWithData.filter(w => w.entry?.weight).length
-    ? (weekWithData.filter(w => w.entry?.weight).reduce((s, w) => s + w.entry.weight, 0) / weekWithData.filter(w => w.entry?.weight).length).toFixed(1)
+    ? (weekWithData.filter(w => w.entry?.weight).reduce((s,w) => s + w.entry.weight, 0) / weekWithData.filter(w => w.entry?.weight).length).toFixed(1)
     : null;
   const canSend = !loading && (input.trim() || pendingImage);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0d111a", fontFamily: "'Inter', -apple-system, sans-serif", color: "#f0f4ff", display: "flex", flexDirection: "column", maxWidth: 420, margin: "0 auto" }}>
+    <div style={{ height: "100vh", background: "#0d111a", fontFamily: "'Inter', -apple-system, sans-serif", color: "#f0f4ff", display: "flex", flexDirection: "column", maxWidth: 420, margin: "0 auto", overflow: "hidden" }}>
+
       {/* Header */}
-      <div style={{ padding: "16px 20px 0", borderBottom: "1px solid #1e2533" }}>
+      <div style={{ flexShrink: 0, padding: "16px 20px 0", borderBottom: "1px solid #1e2533" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em" }}>FINTRACK</div>
@@ -359,7 +372,8 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: 0, marginTop: 2 }}>
+        {/* Tabs */}
+        <div style={{ display: "flex" }}>
           {["chat", "week"].map(v => (
             <button key={v} onClick={() => setView(v)} style={{
               flex: 1, padding: "8px 0", background: "none", border: "none",
@@ -373,7 +387,7 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
 
       {/* Chat view */}
       {view === "chat" && (
-        <>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 8px" }}>
             {messages.map((m, i) => (
               <div key={i} style={{ marginBottom: 12, display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
@@ -402,7 +416,7 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
           </div>
 
           {pendingImage && (
-            <div style={{ padding: "8px 12px 0", display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ flexShrink: 0, padding: "8px 12px 0", display: "flex", alignItems: "flex-start", gap: 8 }}>
               <div style={{ position: "relative", display: "inline-block" }}>
                 <img src={pendingImage.previewUrl} alt="preview" style={{ height: 72, width: 72, objectFit: "cover", borderRadius: 10, border: "1px solid #2a3450", display: "block" }} />
                 <button onClick={() => setPendingImage(null)} style={{ position: "absolute", top: -6, right: -6, background: "#374151", border: "none", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#9ca3af", padding: 0 }}>
@@ -413,13 +427,13 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
             </div>
           )}
 
-          <div style={{ padding: "8px 12px 16px", borderTop: "1px solid #1e2533", display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ flexShrink: 0, padding: "8px 12px 16px", borderTop: "1px solid #1e2533", display: "flex", gap: 8, alignItems: "center" }}>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
             <button onClick={() => fileInputRef.current?.click()} disabled={loading} style={{
               background: "#1a2035", border: "1px solid #2a3450", borderRadius: "50%",
               width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", color: pendingImage ? "#6ee7b7" : "#4a5568",
-              flexShrink: 0, opacity: loading ? 0.4 : 1, transition: "color 0.2s"
+              cursor: "pointer", color: pendingImage ? "#6ee7b7" : "#4a5568", flexShrink: 0,
+              opacity: loading ? 0.4 : 1, transition: "color 0.2s"
             }}>
               <CameraIcon />
             </button>
@@ -427,7 +441,7 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && send()}
-              placeholder={pendingImage ? "Add a note (optional)..." : "79.2kg, CrossFit, 2310 cals, 168p, 11k steps..."}
+              placeholder={pendingImage ? "Add a note (optional)..." : "79.2kg, 2310 cals, 168p, 11k steps..."}
               style={{ flex: 1, background: "#1a2035", border: "1px solid #2a3450", borderRadius: 24, padding: "10px 16px", fontSize: 14, color: "#f0f4ff", outline: "none" }}
             />
             <button onClick={send} disabled={!canSend} style={{
@@ -438,7 +452,7 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
               <SendIcon />
             </button>
           </div>
-        </>
+        </div>
       )}
 
       {/* Week view */}
@@ -448,7 +462,7 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
           {weekWithData.length > 0 && (
             <div style={{ background: "#111827", borderRadius: 12, padding: 16, marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#4a5568", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>Week average</div>
-              {["calories", "protein", "steps"].map(key => {
+              {["calories","protein","steps"].map(key => {
                 const vals = weekWithData.filter(w => w.entry?.[key]).map(w => w.entry[key]);
                 const avg = vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
                 const colors = { calories: "#818cf8", protein: "#f472b6", steps: "#34d399" };
@@ -460,13 +474,22 @@ LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sl
           <div style={{ fontSize: 11, fontWeight: 700, color: "#4a5568", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Daily breakdown</div>
           {week.map(({ key, label, entry }) => (
             <div key={key} style={{ background: key === todayKey() ? "#14213a" : "#111827", border: `1px solid ${key === todayKey() ? "#2a3a6a" : "#1e2533"}`, borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: entry ? 8 : 0 }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontWeight: 800, fontSize: 13, color: key === todayKey() ? "#818cf8" : "#f0f4ff" }}>{label}</span>
-                  {entry?.training && <span style={{ fontSize: 11, color: "#4a5568", background: "#1e2533", padding: "2px 8px", borderRadius: 20 }}>{entry.training}</span>}
-                </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: entry ? 6 : 0 }}>
+                <span style={{ fontWeight: 800, fontSize: 13, color: key === todayKey() ? "#818cf8" : "#f0f4ff" }}>{label}</span>
                 {entry?.weight ? <span style={{ fontSize: 14, fontWeight: 700, color: "#6ee7b7" }}>{entry.weight.toFixed(1)} kg</span> : <span style={{ fontSize: 12, color: "#2a3450" }}>no entry</span>}
               </div>
+              {entry?.training && (
+                <div style={{ fontSize: 11, color: "#6b7a99", marginBottom: 6, fontStyle: "italic", lineHeight: 1.4 }}>{entry.training}</div>
+              )}
+              {entry?.lifts?.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                  {entry.lifts.map((l, i) => (
+                    <span key={i} style={{ fontSize: 11, background: "#1a2d1a", color: "#6ee7b7", padding: "2px 8px", borderRadius: 20 }}>
+                      {l.exercise} {l.weight}kg ×{l.reps}
+                    </span>
+                  ))}
+                </div>
+              )}
               {entry && (
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   {[
