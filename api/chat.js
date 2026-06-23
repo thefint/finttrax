@@ -5,6 +5,17 @@ export default async function handler(req, res) {
     let body = req.body;
     if (typeof body === "string") body = JSON.parse(body);
 
+    const payload = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 1000,
+      system: body.system,
+      messages: body.messages,
+    };
+
+    console.log("Sending messages count:", payload.messages?.length);
+    console.log("First message role:", payload.messages?.[0]?.role);
+    console.log("Last message role:", payload.messages?.[payload.messages?.length-1]?.role);
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -12,12 +23,7 @@ export default async function handler(req, res) {
         "x-api-key": process.env.ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1000,
-        system: body.system,
-        messages: body.messages,
-      }),
+      body: JSON.stringify(payload),
     });
 
     const rawText = await response.text();
