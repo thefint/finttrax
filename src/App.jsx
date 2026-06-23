@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 const STORAGE_KEY = "fitness-log-entries";
+const SHEETS_URL = "https://script.google.com/macros/s/AKfycbzCVLiS6ozrmMZS0kn_2o7l-C-osS7iWOZCb_rm1Xccv-JzHVIz6Zih2gx8KWsfQmX5mA/exec";
 const TARGETS = { calories: 2300, protein: 160, carbs: 245, fat: 75, steps: 10000, sleep: 7.5 };
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -291,8 +292,33 @@ export default function App() {
     e.target.value = "";
   }
 
+  function syncToSheets(dateKey, entry) {
+    const payload = {
+      date: dateKey,
+      weight: entry.weight || "",
+      calories: entry.calories || "",
+      protein: entry.protein || "",
+      carbs: entry.carbs || "",
+      fat: entry.fat || "",
+      steps: entry.steps || "",
+      sleep: entry.sleep || "",
+      training: entry.training || "",
+      lifts: entry.lifts ? entry.lifts.map(l => `${l.exercise} ${l.weight}kg x${l.reps}`).join("; ") : ""
+    };
+    fetch(SHEETS_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).catch(() => {});
+  }
+
   function handleEditSave(dateKey, cleaned) {
-    setEntries(prev => ({ ...prev, [dateKey]: { ...(prev[dateKey] || {}), ...cleaned } }));
+    setEntries(prev => {
+      const updated = { ...prev, [dateKey]: { ...(prev[dateKey] || {}), ...cleaned } };
+      syncToSheets(dateKey, updated[dateKey]);
+      return updated;
+    });
   }
 
   async function send() {
@@ -367,7 +393,11 @@ lifts format: [{"exercise":"Squat","weight":122.5,"reps":6}]`;
           const cleaned = Object.fromEntries(Object.entries(parsed).filter(([,v]) => v !== null));
           if (Object.keys(cleaned).length > 0) {
             const key = todayKey();
-            setEntries(prev => ({ ...prev, [key]: { ...(prev[key] || {}), ...cleaned } }));
+            setEntries(prev => {
+              const updated = { ...prev, [key]: { ...(prev[key] || {}), ...cleaned } };
+              syncToSheets(key, updated[key]);
+              return updated;
+            });
           }
         } catch {}
       }
@@ -376,7 +406,11 @@ lifts format: [{"exercise":"Squat","weight":122.5,"reps":6}]`;
         const localParsed = parseEntry(text);
         if (Object.keys(localParsed).length > 0) {
           const key = todayKey();
-          setEntries(prev => ({ ...prev, [key]: { ...(prev[key] || {}), ...localParsed } }));
+          setEntries(prev => {
+            const updated = { ...prev, [key]: { ...(prev[key] || {}), ...localParsed } };
+            syncToSheets(key, updated[key]);
+            return updated;
+          });
         }
       }
 
