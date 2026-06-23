@@ -145,6 +145,81 @@ function WeightSparkline({ entries }) {
   );
 }
 
+function EditModal({ dateKey, entry, onSave, onClose }) {
+  const [form, setForm] = useState({
+    calories: entry?.calories ?? "",
+    protein: entry?.protein ?? "",
+    carbs: entry?.carbs ?? "",
+    fat: entry?.fat ?? "",
+    steps: entry?.steps ?? "",
+    sleep: entry?.sleep ?? "",
+    weight: entry?.weight ?? "",
+    training: entry?.training ?? "",
+  });
+
+  function handleChange(field, value) {
+    setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  function handleSave() {
+    const cleaned = {};
+    Object.entries(form).forEach(([k, v]) => {
+      if (v === "" || v === null) return;
+      cleaned[k] = k === "training" ? v : parseFloat(v);
+    });
+    onSave(dateKey, cleaned);
+    onClose();
+  }
+
+  const fields = [
+    { key: "weight", label: "Weight", unit: "kg", color: "#6ee7b7" },
+    { key: "calories", label: "Calories", unit: "kcal", color: "#818cf8" },
+    { key: "protein", label: "Protein", unit: "g", color: "#f472b6" },
+    { key: "carbs", label: "Carbs", unit: "g", color: "#60a5fa" },
+    { key: "fat", label: "Fat", unit: "g", color: "#fbbf24" },
+    { key: "steps", label: "Steps", unit: "", color: "#34d399" },
+    { key: "sleep", label: "Sleep", unit: "hrs", color: "#fb923c" },
+  ];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: "#111827", borderRadius: "20px 20px 0 0", padding: "24px 20px 40px", width: "100%", maxWidth: 420 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#f0f4ff" }}>Edit — {formatDate(dateKey)}</div>
+          <button onClick={onClose} style={{ background: "#1e2533", border: "none", borderRadius: "50%", width: 32, height: 32, color: "#6b7a99", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          {fields.map(({ key, label, unit, color }) => (
+            <div key={key}>
+              <div style={{ fontSize: 11, color: color, fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}{unit ? ` (${unit})` : ""}</div>
+              <input
+                type="number"
+                value={form[key]}
+                onChange={e => handleChange(key, e.target.value)}
+                style={{ width: "100%", background: "#1a2035", border: "1px solid #2a3450", borderRadius: 8, padding: "8px 10px", fontSize: 14, color: "#f0f4ff", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+          ))}
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: "#6b7a99", fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>Training</div>
+          <input
+            type="text"
+            value={form.training}
+            onChange={e => handleChange("training", e.target.value)}
+            placeholder="e.g. CrossFit — 3 RFT ring muscle-ups..."
+            style={{ width: "100%", background: "#1a2035", border: "1px solid #2a3450", borderRadius: 8, padding: "8px 10px", fontSize: 14, color: "#f0f4ff", outline: "none", boxSizing: "border-box" }}
+          />
+        </div>
+        <button onClick={handleSave} style={{ width: "100%", padding: "12px 0", background: "#818cf8", border: "none", borderRadius: 10, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CameraIcon() {
   return (
     <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -179,6 +254,7 @@ export default function App() {
   ]);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("chat");
+  const [editingKey, setEditingKey] = useState(null);
   const messagesEnd = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -215,10 +291,13 @@ export default function App() {
     e.target.value = "";
   }
 
+  function handleEditSave(dateKey, cleaned) {
+    setEntries(prev => ({ ...prev, [dateKey]: { ...(prev[dateKey] || {}), ...cleaned } }));
+  }
+
   async function send() {
     const text = input.trim();
     if (!text && !pendingImage) return;
-
     const userMessageText = text || "📷 Screenshot";
     const newUserMsg = { role: "user", text: userMessageText, image: pendingImage?.previewUrl || null };
     const newMessages = [...messages, newUserMsg];
@@ -236,7 +315,7 @@ ${buildContext()}
 SCREENSHOT INSTRUCTIONS:
 - MFP food diary: read every food item listed, give specific actionable feedback on meal timing, food quality, protein spread across meals, what to swap or improve. Be a coach who actually read the diary, not just the totals.
 - Workout/WOD screenshot: read the full workout description and log it exactly as written (movements, weights, reps, notes). Don't summarise to just one word.
-- If you see individual lifts with weights and reps (e.g. squat 122.5kg 6RM), extract each one.
+- If you see individual lifts with weights and reps, extract each one.
 
 TEXT INSTRUCTIONS:
 - If user describes a workout or lift, log the full description as training, not just a keyword.
@@ -244,10 +323,10 @@ TEXT INSTRUCTIONS:
 
 RESPONSE: be direct, 2-5 sentences normally, more for detailed diet feedback. No sycophancy.
 
-CRITICAL — always end your reply with exactly this line, no markdown, fill in what you found (null for anything not present). For lifts use array format:
+CRITICAL — always end your reply with exactly this line, no markdown, fill in what you found (null for anything not present):
 LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sleep":null,"weight":null,"training":null,"lifts":null}
 
-lifts format example: [{"exercise":"Squat","weight":122.5,"reps":6},{"exercise":"Bench","weight":90,"reps":5}]`;
+lifts format: [{"exercise":"Squat","weight":122.5,"reps":6}]`;
 
     try {
       let userContent;
@@ -276,12 +355,11 @@ lifts format example: [{"exercise":"Squat","weight":122.5,"reps":6},{"exercise":
       const fullReply = data.content?.[0]?.text || "";
 
       if (!fullReply) {
-        setMessages(prev => [...prev, { role: "assistant", text: "Something went wrong — try again." }]);
+        setMessages(prev => [...prev, { role: "assistant", text: `Error: ${JSON.stringify(data)}` }]);
         setLoading(false);
         return;
       }
 
-      // Parse LOGDATA
       const logMatch = fullReply.match(/LOGDATA:(\{.+\})/);
       if (logMatch) {
         try {
@@ -294,7 +372,6 @@ lifts format example: [{"exercise":"Squat","weight":122.5,"reps":6},{"exercise":
         } catch {}
       }
 
-      // Belt-and-braces local parse for text
       if (!imageToSend && text) {
         const localParsed = parseEntry(text);
         if (Object.keys(localParsed).length > 0) {
@@ -313,8 +390,8 @@ lifts format example: [{"exercise":"Squat","weight":122.5,"reps":6},{"exercise":
 
   function getWeekEntries() {
     const today = new Date();
-    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
-    const daysSinceMonday = (dayOfWeek + 6) % 7; // Mon=0, Tue=1...
+    const dayOfWeek = today.getDay();
+    const daysSinceMonday = (dayOfWeek + 6) % 7;
     const result = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
@@ -374,7 +451,6 @@ lifts format example: [{"exercise":"Squat","weight":122.5,"reps":6},{"exercise":
             </div>
           )}
         </div>
-        {/* Tabs */}
         <div style={{ display: "flex" }}>
           {["chat", "week"].map(v => (
             <button key={v} onClick={() => setView(v)} style={{
@@ -475,10 +551,15 @@ lifts format example: [{"exercise":"Squat","weight":122.5,"reps":6},{"exercise":
           )}
           <div style={{ fontSize: 11, fontWeight: 700, color: "#4a5568", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Daily breakdown</div>
           {week.map(({ key, label, entry }) => (
-            <div key={key} style={{ background: key === todayKey() ? "#14213a" : "#111827", border: `1px solid ${key === todayKey() ? "#2a3a6a" : "#1e2533"}`, borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
+            <div key={key}
+              onClick={() => setEditingKey(key)}
+              style={{ background: key === todayKey() ? "#14213a" : "#111827", border: `1px solid ${key === todayKey() ? "#2a3a6a" : "#1e2533"}`, borderRadius: 10, padding: "10px 14px", marginBottom: 8, cursor: "pointer", active: { opacity: 0.8 } }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: entry ? 6 : 0 }}>
-                <span style={{ fontWeight: 800, fontSize: 13, color: key === todayKey() ? "#818cf8" : "#f0f4ff" }}>{label}</span>
-                {entry?.weight ? <span style={{ fontSize: 14, fontWeight: 700, color: "#6ee7b7" }}>{entry.weight.toFixed(1)} kg</span> : <span style={{ fontSize: 12, color: "#2a3450" }}>no entry</span>}
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontWeight: 800, fontSize: 13, color: key === todayKey() ? "#818cf8" : "#f0f4ff" }}>{label}</span>
+                  <span style={{ fontSize: 10, color: "#2a3450" }}>✎</span>
+                </div>
+                {entry?.weight ? <span style={{ fontSize: 14, fontWeight: 700, color: "#6ee7b7" }}>{entry.weight.toFixed(1)} kg</span> : <span style={{ fontSize: 12, color: "#2a3450" }}>tap to add</span>}
               </div>
               {entry?.training && (
                 <div style={{ fontSize: 11, color: "#6b7a99", marginBottom: 6, fontStyle: "italic", lineHeight: 1.4 }}>{entry.training}</div>
@@ -520,6 +601,16 @@ lifts format example: [{"exercise":"Squat","weight":122.5,"reps":6},{"exercise":
             Export CSV
           </button>
         </div>
+      )}
+
+      {/* Edit modal */}
+      {editingKey && (
+        <EditModal
+          dateKey={editingKey}
+          entry={entries[editingKey]}
+          onSave={handleEditSave}
+          onClose={() => setEditingKey(null)}
+        />
       )}
 
       <style>{`
