@@ -19,6 +19,13 @@ export default async function handler(req, res) {
         messages: body.messages,
       }),
     });
-const text = await response.text();
-console.log("Raw response:", text);
-const data = JSON.parse(text);
+
+    const rawText = await response.text();
+    console.log("Anthropic raw:", rawText.substring(0, 500));
+    const data = JSON.parse(rawText);
+    res.status(200).json(data);
+  } catch (err) {
+    console.log("Error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
