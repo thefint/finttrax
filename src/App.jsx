@@ -457,7 +457,7 @@ setEntries(prev => ({
   const canSend = !loading && (input.trim() || pendingImage);
 
   return (
-    <div style={{ height: "100vh", background: "#0d111a", fontFamily: "'Inter', -apple-system, sans-serif", color: "#f0f4ff", display: "flex", flexDirection: "column", maxWidth: 420, margin: "0 auto", overflow: "hidden" }}>
+    <div style={{ height: "100dvh", background: "#0d111a", fontFamily: "'Inter', -apple-system, sans-serif", color: "#f0f4ff", display: "flex", flexDirection: "column", maxWidth: 420, margin: "0 auto", overflow: "hidden" }}>
 
       {/* Header */}
       <div style={{ flexShrink: 0, padding: "16px 20px 0", borderBottom: "1px solid #1e2533" }}>
