@@ -539,7 +539,7 @@ setEntries(prev => ({
             </div>
           )}
 
-          <div style={{ flexShrink: 0, padding: "8px 12px 16px", borderTop: "1px solid #1e2533", display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ flexShrink: 0, padding: "8px 12px env(safe-area-inset-bottom, 16px)", borderTop: "1px solid #1e2533", display: "flex", gap: 8, alignItems: "center" }}>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
             <button onClick={() => fileInputRef.current?.click()} disabled={loading} style={{
               background: "#1a2035", border: "1px solid #2a3450", borderRadius: "50%",
