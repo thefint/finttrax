@@ -21,8 +21,12 @@ function formatDate(key) {
 function parseEntry(text) {
   const result = {};
   const t = text.toLowerCase();
+  const liftContext = /bar|barbell|dumbbell|\bdb\b|\bkb\b|kettlebell|squat|deadlift|press|clean|snatch|jerk|thruster|lunge|row|wod|amrap|emom|rounds?|reps?|sets?|@|\d\s*x\s*\d/;
   const wt = t.match(/(\d+\.?\d*)\s*kg/);
-  if (wt) result.weight = parseFloat(wt[1]);
+  if (wt && !liftContext.test(t)) {
+    const bw = parseFloat(wt[1]);
+    if (bw >= 45 && bw <= 160) result.weight = bw;
+  }
   const cal = t.match(/(\d{3,5})\s*(?:kcal|cal(?:ories?)?|cals?)/);
   if (cal) result.calories = parseInt(cal[1]);
   if (!result.calories) {
@@ -274,6 +278,12 @@ export default function App() {
 
   const todayEntry = entries[todayKey()] || {};
 
+  function todayLiftsText() {
+    const e = entries[todayKey()] || {};
+    const lifts = e.lifts?.length ? e.lifts.map(l => `${l.exercise} ${l.sets > 1 ? l.sets + "x" : ""}${l.reps} @ ${l.weight}kg`).join("; ") : "no lifts";
+    return `${lifts}${e.training ? `; training: ${e.training}` : ""}`;
+  }
+
   function buildContext() {
     const recent = Object.entries(entries)
       .sort(([a],[b]) => b.localeCompare(a)).slice(0, 14)
@@ -354,24 +364,33 @@ export default function App() {
 
     const systemPrompt = `You are a direct, knowledgeable fitness and nutrition coach for Fintan — Irish secondary school teacher, CrossFit 4-5x/week. Daily targets: ${TARGETS.calories} kcal, ${TARGETS.protein}g protein, ${TARGETS.carbs}g carbs, ${TARGETS.fat}g fat, ${TARGETS.steps} steps, 7.5hrs sleep. Fat loss plan, 300 kcal deficit, goal August 10th.
 
+Today is ${formatDate(todayKey())} (${todayKey()}).
+Already logged today: ${todayLiftsText()}
+
 Recent log:
 ${buildContext()}
 
 SCREENSHOT INSTRUCTIONS:
 - MFP food diary: read every food item listed, give specific actionable feedback on meal timing, food quality, protein spread across meals, what to swap or improve. Be a coach who actually read the diary, not just the totals.
 - Workout/WOD screenshot: read the full workout description and log it exactly as written (movements, weights, reps, notes). Don't summarise to just one word.
-- If you see individual lifts with weights and reps, extract each one.
+- If you see strength lifts with weights and reps, extract each one (see LIFTS RULES).
 
 TEXT INSTRUCTIONS:
 - If user describes a workout or lift, log the full description as training, not just a keyword.
-- Extract any strength data mentioned (exercise name, weight, reps/sets).
+- Extract strength lifts mentioned (exercise name, weight, reps, sets) following LIFTS RULES.
+
+LIFTS RULES:
+- "lifts" is ONLY for strength work done for load: e.g. back squat 5x5 @ 100kg, deadlift 3x3, strict press, a heavy single, cleans/snatches worked up to a top set.
+- Do NOT put movements from a conditioning WOD/metcon/AMRAP/EMOM/intervals into "lifts" (e.g. "12 shoulder-to-overhead @ 40kg" inside a 4-min interval). Put the whole workout in "training" instead.
+- Only include lifts newly reported in the latest user message. Never repeat lifts already logged today (listed above); use null if there are none new.
+- Before asking whether they did strength work today, check "Already logged today" above.
 
 RESPONSE: be direct, 2-5 sentences normally, more for detailed diet feedback. No sycophancy.
 
 CRITICAL — always end your reply with exactly this line, no markdown, fill in what you found (null for anything not present):
 LOGDATA:{"calories":null,"protein":null,"carbs":null,"fat":null,"steps":null,"sleep":null,"weight":null,"training":null,"lifts":null}
 
-lifts format: [{"exercise":"Squat","weight":122.5,"reps":6}]`;
+lifts format: [{"exercise":"Back squat","weight":122.5,"reps":6,"sets":3}]`;
 
     try {
       let userContent;
@@ -415,7 +434,12 @@ lifts format: [{"exercise":"Squat","weight":122.5,"reps":6}]`;
             setEntries(prev => {
               const day = prev[key] || {};
               const merged = { ...day, ...cleaned };
-              if (Array.isArray(cleaned.lifts)) merged.lifts = [...(day.lifts || []), ...cleaned.lifts];
+              if (Array.isArray(cleaned.lifts)) {
+                const existing = day.lifts || [];
+                const same = (a, b) => String(a.exercise).trim().toLowerCase() === String(b.exercise).trim().toLowerCase()
+                  && Number(a.weight) === Number(b.weight) && Number(a.reps) === Number(b.reps);
+                merged.lifts = [...existing, ...cleaned.lifts.filter(l => l?.exercise && !existing.some(x => same(x, l)))];
+              }
               const updated = { ...prev, [key]: merged };
               syncToSheets(key, updated[key]);
               return updated;
