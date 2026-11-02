@@ -23,7 +23,7 @@ function parseEntry(text) {
   const t = text.toLowerCase();
   const wt = t.match(/(\d+\.?\d*)\s*kg/);
   if (wt) result.weight = parseFloat(wt[1]);
-  const cal = t.match(/(\di{3,5})\s*(?:kcal|cal(?:ories?)?|cals?)/);
+  const cal = t.match(/(\d{3,5})\s*(?:kcal|cal(?:ories?)?|cals?)/);
   if (cal) result.calories = parseInt(cal[1]);
   if (!result.calories) {
     const bare = t.match(/\b(1[5-9]\d\d|2[0-9]\d\d|3[0-4]\d\d)\b/);
