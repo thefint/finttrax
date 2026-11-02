@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import Lifts from "./Lifts.jsx";
 
 const STORAGE_KEY = "fitness-log-entries";
 const SHEETS_URL = "https://script.google.com/macros/s/AKfycbzCVLiS6ozrmMZS0kn_2o7l-C-osS7iWOZCb_rm1Xccv-JzHVIz6Zih2gx8KWsfQmX5mA/exec";
@@ -313,6 +314,24 @@ export default function App() {
     }).catch(() => {});
   }
 
+  function handleAddLift(dateKey, lift) {
+    setEntries(prev => {
+      const day = prev[dateKey] || {};
+      const updated = { ...prev, [dateKey]: { ...day, lifts: [...(day.lifts || []), lift] } };
+      syncToSheets(dateKey, updated[dateKey]);
+      return updated;
+    });
+  }
+
+  function handleDeleteLift(dateKey, index) {
+    setEntries(prev => {
+      const day = prev[dateKey] || {};
+      const updated = { ...prev, [dateKey]: { ...day, lifts: (day.lifts || []).filter((_, i) => i !== index) } };
+      syncToSheets(dateKey, updated[dateKey]);
+      return updated;
+    });
+  }
+
   function handleEditSave(dateKey, cleaned) {
     setEntries(prev => {
       const updated = { ...prev, [dateKey]: { ...(prev[dateKey] || {}), ...cleaned } };
@@ -394,7 +413,10 @@ lifts format: [{"exercise":"Squat","weight":122.5,"reps":6}]`;
           if (Object.keys(cleaned).length > 0) {
             const key = todayKey();
             setEntries(prev => {
-              const updated = { ...prev, [key]: { ...(prev[key] || {}), ...cleaned } };
+              const day = prev[key] || {};
+              const merged = { ...day, ...cleaned };
+              if (Array.isArray(cleaned.lifts)) merged.lifts = [...(day.lifts || []), ...cleaned.lifts];
+              const updated = { ...prev, [key]: merged };
               syncToSheets(key, updated[key]);
               return updated;
             });
@@ -486,13 +508,13 @@ setEntries(prev => ({
           )}
         </div>
         <div style={{ display: "flex" }}>
-          {["chat", "week"].map(v => (
+          {["chat", "week", "lifts"].map(v => (
             <button key={v} onClick={() => setView(v)} style={{
               flex: 1, padding: "8px 0", background: "none", border: "none",
               borderBottom: `2px solid ${view === v ? "#818cf8" : "transparent"}`,
               color: view === v ? "#818cf8" : "#4a5568", fontSize: 13, fontWeight: 700,
               cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", transition: "all 0.2s"
-            }}>{v === "chat" ? "Log / Chat" : "This Week"}</button>
+            }}>{v === "chat" ? "Log / Chat" : v === "week" ? "This Week" : "Lifts"}</button>
           ))}
         </div>
       </div>
@@ -635,6 +657,11 @@ setEntries(prev => ({
             Export CSV
           </button>
         </div>
+      )}
+
+      {/* Lifts view */}
+      {view === "lifts" && (
+        <Lifts entries={entries} onAddLift={handleAddLift} onDeleteLift={handleDeleteLift} />
       )}
 
       {/* Edit modal */}
