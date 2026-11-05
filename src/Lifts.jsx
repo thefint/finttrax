@@ -1,6 +1,14 @@
 import { useState, useMemo } from "react";
 
-const COMMON_LIFTS = ["Back squat","Front squat","Deadlift","Bench press","Strict press","Push press","Clean","Power clean","Clean & jerk","Snatch","Power snatch","Thruster","Overhead squat"];
+const COMMON_LIFTS = [
+  "Back squat","Front squat","Overhead squat",
+  "Deadlift","Sumo deadlift","Romanian deadlift",
+  "Bench press","Strict press","Push press","Push jerk","Split jerk",
+  "Clean","Power clean","Hang clean","Clean & jerk",
+  "Snatch","Power snatch","Hang snatch",
+  "Thruster","Bent-over row","Hip thrust","Weighted pull-up",
+];
+const OTHER = "__other__";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
@@ -175,7 +183,7 @@ function ProgressChart({ series }) {
 
 export default function Lifts({ entries, onAddLift, onDeleteLift }) {
   const todayKey = toKey(new Date());
-  const [form, setForm] = useState({ exercise: "", weight: "", reps: "5", sets: "1", date: todayKey });
+  const [form, setForm] = useState({ choice: "", custom: "", weight: "", reps: "5", sets: "1", date: todayKey });
   const [selected, setSelected] = useState(null);
   const [status, setStatus] = useState("");
   const [confirmDel, setConfirmDel] = useState(null);
@@ -196,6 +204,8 @@ export default function Lifts({ entries, onAddLift, onDeleteLift }) {
     return lb.localeCompare(la) || a.localeCompare(b);
   });
   const sel = selected && byLift.has(selected) ? selected : liftKeys[0];
+  const myLifts = liftKeys.map(k => byLift.get(k)[0].name);
+  const otherLifts = COMMON_LIFTS.filter(n => !byLift.has(n.toLowerCase()));
 
   const thisWeek = weekStart(todayKey);
   const weekRows = rows.filter(r => weekStart(r.date) === thisWeek);
@@ -205,7 +215,7 @@ export default function Lifts({ entries, onAddLift, onDeleteLift }) {
 
   function submit(e) {
     e.preventDefault();
-    const raw = form.exercise.trim().replace(/\s+/g, " ");
+    const raw = (form.choice === OTHER ? form.custom : form.choice).trim().replace(/\s+/g, " ");
     const weight = parseFloat(form.weight), reps = parseInt(form.reps, 10), sets = parseInt(form.sets, 10) || 1;
     if (!raw || !(weight > 0) || !(reps > 0) || !form.date) { setStatus("Fill in the lift, weight, reps and date."); return; }
     const known = [...byLift.values()].map(l => l[0].name);
@@ -216,7 +226,7 @@ export default function Lifts({ entries, onAddLift, onDeleteLift }) {
     setStatus(prevBest && weight > prevBest
       ? `New ${name} PR: ${fmtKg(weight)} kg (up ${fmtKg(weight - prevBest)} kg)`
       : `Logged ${name}: ${sets > 1 ? `${sets}×` : ""}${reps} @ ${fmtKg(weight)} kg`);
-    setForm(f => ({ ...f, weight: "" }));
+    setForm(f => ({ ...f, weight: "", choice: name, custom: "" }));
   }
 
   // ----- selected lift summary -----
@@ -254,10 +264,23 @@ export default function Lifts({ entries, onAddLift, onDeleteLift }) {
         <div style={sectionTitle}>Log a lift</div>
         <div style={{ marginBottom: 10 }}>
           <div style={{ ...label, marginBottom: 4 }}>Lift</div>
-          <input id="lift-exercise" list="lift-names" value={form.exercise} onChange={e => set("exercise", e.target.value)} placeholder="Back squat" style={inputStyle} />
-          <datalist id="lift-names">
-            {[...new Set([...liftKeys.map(k => byLift.get(k)[0].name), ...COMMON_LIFTS])].map(n => <option key={n} value={n} />)}
-          </datalist>
+          <select id="lift-exercise" value={form.choice} onChange={e => set("choice", e.target.value)}
+            style={{ ...inputStyle, color: form.choice ? C.text : C.dim, appearance: "auto" }}>
+            <option value="" disabled>Choose a lift…</option>
+            {myLifts.length > 0 && (
+              <optgroup label="Your lifts">
+                {myLifts.map(n => <option key={n} value={n}>{n}</option>)}
+              </optgroup>
+            )}
+            <optgroup label={myLifts.length ? "Other common lifts" : "Common lifts"}>
+              {otherLifts.map(n => <option key={n} value={n}>{n}</option>)}
+            </optgroup>
+            <option value={OTHER}>Other (type it in)…</option>
+          </select>
+          {form.choice === OTHER && (
+            <input id="lift-custom" value={form.custom} onChange={e => set("custom", e.target.value)}
+              placeholder="Lift name" autoFocus style={{ ...inputStyle, marginTop: 8 }} />
+          )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr 0.8fr", gap: 8, marginBottom: 10 }}>
           <div>
